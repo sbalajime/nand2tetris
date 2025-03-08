@@ -14,5 +14,10 @@ CHIP PC {
     OUT out[16];
     
     PARTS:
-    //// Replace this comment with your code.
+    Inc16(in = rOut, out = incOut);
+    Mux16(a = incOut, b = in, sel = load, out = rs1);  // should increment even if load is 0. Shouldn't increment if load is 1.
+    Mux16(a = rs1, b = false, sel = reset, out = rs2); // Should reset to 0 even if load is 1.
+    Or(a = load, b = inc, out = or1out);
+    Or(a = or1out, b = reset, out = or2out);
+    Register(in = rs2, load = or2out,  out = rOut, out = out); // Register should load value if any of the three control bit is 1.
 }
