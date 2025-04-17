@@ -1,7 +1,3 @@
-// This file is part of www.nand2tetris.org
-// and the book "The Elements of Computing Systems"
-// by Nisan and Schocken, MIT Press.
-// File name: projects/5/CPU.hdl
 /**
  * The Hack Central Processing unit (CPU).
  * Parses the binary code in the instruction input and executes it according to the
@@ -32,5 +28,60 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-	//// Replace this comment with your code.
+    Not(in = instruction[15], out=isAInstruction);
+    Not(in = isAInstruction, out = isCInstruction);
+    And(a = instruction[4], b = isCInstruction, out = dRLoad);
+    And(a = instruction[5], b = isCInstruction, out = aRLoadForC);
+    Or(a = aRLoadForC, b = isAInstruction, out = aRLoad);
+    // A Register
+    Mux16(a = aluOut, b = instruction, sel = isAInstruction, out = aRSrc);
+    ARegister(in=aRSrc, load = aRLoad, out = aROut, out[0..14] = addressM);
+    // D Register
+    DRegister(in=aluOut, load = dRLoad, out = aluXSrc);
+    // ALU
+    Mux16(a=aROut, b=inM, sel= instruction[12], out=aluYSrc);
+    And(a = instruction[3], b = isCInstruction, out = writeM);
+    ALU(x = aluXSrc, y = aluYSrc, zx = instruction[11], nx = instruction[10], zy = instruction[9], ny = instruction[8], f = instruction[7], no = instruction[6], out = aluOut, out = outM, zr = aluZr, ng = aluNg);
+    // Compute alugt, alule, aluge, alune for jump comparison
+    Nor(a = aluZr, b = aluNg, out = aluGt);
+    Or(a = aluZr, b = aluNg, out = aluLe);
+    Or(a = aluGt, b = aluZr, out = aluGe);
+    Not(in = aluZr, out = aluNe);
+    // JGT
+    Nor(a = instruction[1], b = instruction[2], out = is1and2zero);
+    And(a = is1and2zero, b = instruction[0], out = isGtJump);
+    And(a = isGtJump, b = aluGt, out = isGtSatisified);
+    // JEQ
+    Nor(a = instruction[0], b = instruction[2], out = is0and2zero);
+    And(a = is0and2zero, b = instruction[1], out = isEqJump);
+    And(a = isEqJump, b = aluZr, out = isEqSatisfied);
+    // JGE
+    And(a = instruction[0], b = instruction[1], out = is0and1One);
+    Not(in = instruction[2], out = not2);
+    And(a = is0and1One, b = not2, out = isGeJump);
+    And(a = isGeJump, b = aluGe, out = isGeSatisfied);
+    // JLT
+    And(a = instruction[0], b = true, out = is0One);
+    And(a = instruction[1], b = true, out = is1One);
+    Nor(a = instruction[0], b = instruction[1], out = is0and1Zero);
+    And(a = is0and1Zero, b = instruction[2], out = isLtJump);
+    And(a = isLtJump, b = aluNg, out = isLtSatisified);
+    // JNE
+    And(a = instruction[0], b = instruction[2], out = is0and2One);
+    Not(in = instruction[1], out = not1);
+    And(a = is0and2One, b = not1, out = isNeJump);
+    And(a = isNeJump, b = aluNe, out = isNeSatisfied);
+    // JLE
+    And(a = instruction[1], b = instruction[2], out = is1and2One);
+    Not(in = instruction[0], out = not0);
+    And(a = is1and2One, b = not0, out = isLeJump);
+    And(a = isLeJump, b = aluLe, out = isLeSatisfied);
+    // JMP
+    And(a = is1and2One, b = is0and1One, out = isUnconJump);
+    //Jump only if c instruction
+    Or8Way(in[0] = false, in[1] = isGtSatisified, in[2] = isEqSatisfied, in[3] = isGeSatisfied, in[4] = isLtSatisified, in[5] = isNeSatisfied, in[6] = isLeSatisfied, in[7] = isUnconJump, out = isAnyJumpSatisfied);
+    And(a = isAnyJumpSatisfied, b = isCInstruction, out = isJump);
+    Not(in = isJump, out = isInc);
+    // PC
+    PC(in= aROut, load = isJump, inc = isInc, reset = reset, out[0..14] = pc);
 }
