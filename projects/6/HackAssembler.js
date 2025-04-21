@@ -130,7 +130,7 @@ const removeUnwantedLines = (lines) => {
 }
 
 class Code {
-    compMap = {
+    static compMap = {
         "0": "0101010",
         "1": "0111111",
         "-1": "0111010",
@@ -160,7 +160,7 @@ class Code {
         "D|A": "0010101",
         "D|M": "1010101"
     }
-    jumpMap = {
+    static jumpMap = {
         JGT: "001",
         JEQ: "010",
         JGE: "011",
@@ -170,7 +170,7 @@ class Code {
         JMP: "111",
         null: "000"
     }
-    dest(arg) {
+    static dest(arg) {
         if (arg) {
             let [aBit, dBit, mBit] = ["0", "0", "0"];
             if (arg.includes("M")) {
@@ -188,27 +188,15 @@ class Code {
         }
 
     }
-    comp(arg) {
+    static comp(arg) {
         return this.compMap[arg];
     }
-    jump(arg) {
+    static jump(arg) {
         return this.jumpMap[arg];
     }
 
-    convertDecToBinary(arg) {
-        let quotient = arg;
-        let remArr = []
-        while (quotient > 0) {
-            let rem = quotient % 2;
-            remArr.push(rem);
-            quotient = parseInt(quotient / 2);
-        }
-        let str = remArr.reverse().join("");
-
-        while (str.length < 16) {
-            str = "0" + str;
-        }
-        return str;
+    static convertDecToBinary(arg) {
+        return arg.toString(2).padStart(16, '0')
     }
 }
 
@@ -234,44 +222,33 @@ function assembler() {
         }
 
     } while (labelParser.hasMoreLines())
-    const symbolParser = new Parser(filePath);
     let variableCount = 0;
     let variableBaseAddress = 16;
-    do {
-        // go through each line
-        // Find if a variable symbol exists in format  @xxx (not predefined)
-        symbolParser.advance();
-        const type = symbolParser.instructionType();
-        if (type === "A_INSTRUCTION") {
-            let symbol = symbolParser.symbol();
-            if (!SYMBOLS_MAP.hasOwnProperty(symbol) && isNaN(symbol)) {
-                SYMBOLS_MAP[symbol] = variableBaseAddress + variableCount;
-                variableCount++;
-            }
-        }
-    } while (symbolParser.hasMoreLines())
     const parser = new Parser(filePath);
-    const code = new Code();
     do {
         parser.advance();
         const type = parser.instructionType();
         if (type === "A_INSTRUCTION") {
             let symbol = parser.symbol();
+            if (!SYMBOLS_MAP.hasOwnProperty(symbol) && isNaN(symbol)) {
+                SYMBOLS_MAP[symbol] = variableBaseAddress + variableCount;
+                variableCount++;
+            }
             if (isNaN(symbol) && Object.keys(SYMBOLS_MAP).includes(symbol)) {
                 let value = SYMBOLS_MAP[symbol];
-                let binary = code.convertDecToBinary(value);
+                let binary = Code.convertDecToBinary(value);
                 outputArr.push(binary);
             } else if (!isNaN(symbol)) {
-                let binary = code.convertDecToBinary(Number(symbol));
+                let binary = Code.convertDecToBinary(Number(symbol));
                 outputArr.push(binary);
             }
         } else if (type === "C_INSTRUCTION") {
             let dest = parser.dest();
-            let destCode = code.dest(dest);
+            let destCode = Code.dest(dest);
             let comp = parser.comp();
-            let compCode = code.comp(comp);
+            let compCode = Code.comp(comp);
             let jump = parser.jump();
-            let jumpCode = code.jump(jump);
+            let jumpCode = Code.jump(jump);
             outputArr.push(`111${compCode}${destCode}${jumpCode}`)
         }
 
