@@ -1,5 +1,30 @@
 const fs = require("node:fs");
 
+const SYMBOLS_MAP = {
+    "R0": 0,
+    "R1": 1,
+    "R2": 2,
+    "R3": 3,
+    "R4": 4,
+    "R5": 5,
+    "R6": 6,
+    "R7": 7,
+    "R8": 8,
+    "R9": 9,
+    "R10": 10,
+    "R11": 11,
+    "R12": 12,
+    "R13": 13,
+    "R14": 14,
+    "R15": 15,
+    SP: 0,
+    LCL: 1,
+    ARG: 2,
+    THIS: 3,
+    THAT: 4,
+    SCREEN: "16384",
+    KBD: "24576"
+}
 
 class Parser {
     constructor(path) {
@@ -95,7 +120,7 @@ const removeUnwantedLines = (lines) => {
         }
         else {
             let newLine = line.replace("\r", "");
-            newLine = newLine.replace(" ","");
+            newLine = newLine.trim();
             if (newLine) {
                 validLines.push(newLine);
             }
@@ -146,18 +171,18 @@ class Code {
         null: "000"
     }
     dest(arg) {
-        if(arg) {
-            let [aBit, dBit, mBit] = ["0","0","0"];
-            if(arg.includes("M")){
+        if (arg) {
+            let [aBit, dBit, mBit] = ["0", "0", "0"];
+            if (arg.includes("M")) {
                 mBit = "1"
-            } 
-            if(arg.includes("D")){
+            }
+            if (arg.includes("D")) {
                 dBit = "1"
             }
-            if(arg.includes("A")) {
+            if (arg.includes("A")) {
                 aBit = "1"
             }
-            return aBit+dBit+mBit;
+            return aBit + dBit + mBit;
         } else {
             return "000"
         }
@@ -179,7 +204,7 @@ class Code {
             quotient = parseInt(quotient / 2);
         }
         let str = remArr.reverse().join("");
-        
+
         while (str.length < 16) {
             str = "0" + str;
         }
@@ -193,6 +218,38 @@ class Code {
 function assembler() {
     const filePath = process.argv[2];
     let outputArr = [];
+    const labelParser = new Parser(filePath);
+    let labelsCount = 0;
+    do {
+        // go through each line
+        // Find if a label exists in the format (xxx) and add it to symbols map
+        labelParser.advance();
+        const type = labelParser.instructionType();
+        if (type === "L_INSTRUCTION") {
+            let symbol = labelParser.symbol().replace("(", "").replace(")", "");
+            if (!SYMBOLS_MAP.hasOwnProperty(symbol)) {
+                SYMBOLS_MAP[symbol] = labelParser.currentLine - labelsCount;
+                labelsCount++;
+            }
+        }
+
+    } while (labelParser.hasMoreLines())
+    const symbolParser = new Parser(filePath);
+    let variableCount = 0;
+    let variableBaseAddress = 16;
+    do {
+        // go through each line
+        // Find if a variable symbol exists in format  @xxx (not predefined)
+        symbolParser.advance();
+        const type = symbolParser.instructionType();
+        if (type === "A_INSTRUCTION") {
+            let symbol = symbolParser.symbol();
+            if (!SYMBOLS_MAP.hasOwnProperty(symbol) && isNaN(symbol)) {
+                SYMBOLS_MAP[symbol] = variableBaseAddress + variableCount;
+                variableCount++;
+            }
+        }
+    } while (symbolParser.hasMoreLines())
     const parser = new Parser(filePath);
     const code = new Code();
     do {
@@ -200,8 +257,14 @@ function assembler() {
         const type = parser.instructionType();
         if (type === "A_INSTRUCTION") {
             let symbol = parser.symbol();
-            let binary = code.convertDecToBinary(Number(symbol));
-            outputArr.push(binary);
+            if (isNaN(symbol) && Object.keys(SYMBOLS_MAP).includes(symbol)) {
+                let value = SYMBOLS_MAP[symbol];
+                let binary = code.convertDecToBinary(value);
+                outputArr.push(binary);
+            } else if (!isNaN(symbol)) {
+                let binary = code.convertDecToBinary(Number(symbol));
+                outputArr.push(binary);
+            }
         } else if (type === "C_INSTRUCTION") {
             let dest = parser.dest();
             let destCode = code.dest(dest);
